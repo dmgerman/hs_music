@@ -1,0 +1,73 @@
+#+TITLE: hs_music Spoon
+#+AUTHOR: Daniel M German
+#+VERSION: 0.1
+
+A Hammerspoon spoon for controlling Apple Music playback and volume.
+
+* Features
+
+- *Playback Control*: Play/pause, next track, previous track
+- *Track Info*: Get and display current track name, artist, and album
+- *Volume Control*: Set Music app volume (0-100) via accessibility API
+- *Accessibility API*: Direct volume manipulation through UI sliders
+- *GridCraft Integration*: Menu-driven access to all music controls
+
+** Playback Control
+
+- =toggleMusicAppPlayPause()= - Play or pause current track
+- =nextMusicAppTrack()= - Skip to next track
+- =previousMusicAppTrack()= - Go to previous track
+
+** Track Information
+
+- =getMusicAppCurrentTrack()= - Returns formatted string: "TrackName - Artist [Album]"
+- =showMusicAppCurrentTrack()= - Display track info in alert (uses =alertDuration=)
+
+** Volume Control
+
+- =changeMusicAppVolume(level)= - Set volume (0-100 percent)
+- =getMusicAppVolume()= - Get current volume as percentage (0-100)
+
+
+** Low-Level
+
+- =sendMusicAppCommand(command)= - Send raw AppleScript command to Music app
+
+* Example Usage
+
+#+BEGIN_SRC lua
+local music = hs.loadSpoon("hs_music")
+
+-- Set alert duration to 3 seconds
+music.alertDuration = 3
+
+-- Toggle play/pause
+music:toggleMusicAppPlayPause()
+
+-- Skip to next track
+music:nextMusicAppTrack()
+
+-- Show current track with artist and album
+music:showMusicAppCurrentTrack()
+
+-- Get current volume and increase by 20%
+local currentVol = music:getMusicAppVolume()
+if currentVol then
+  music:changeMusicAppVolume(currentVol + 20)
+end
+
+-- Set volume to specific level (50%)
+music:changeMusicAppVolume(50)
+#+END_SRC
+
+* Requirements
+
+- macOS with Apple Music app
+- Hammerspoon with accessibility permissions enabled
+- For volume control: Accessibility API access to Music app
+
+* Notes
+
+- Volume control uses the second slider in Music app UI (volume slider)
+- Track info includes artist and album in formatted output
+- All operations gracefully handle errors with user alerts
