@@ -26,6 +26,9 @@ obj.trackFormat = "Track: {name}\nArtist: {artist}\nAlbum: {album}"
 -- @field maxAlbumSkipAttempts (number): Maximum number of track skips when trying to reach next album (default: 20)
 obj.maxAlbumSkipAttempts = 20
 
+-- @field albumSkipDelay (number): Delay in seconds between track skips during album navigation (default: 0.3)
+obj.albumSkipDelay = 0.3
+
 --- Helper to ensure Music is running, show alert if not.
 --
 -- @return (boolean): true if Music is running, false otherwise (alert shown on failure)
@@ -211,40 +214,97 @@ function obj:adjustVolume(delta)
   return self:setVolume(newVolume)
 end
 
---- Skips to the next album asynchronously.
--- Uses callbacks to avoid blocking Hammerspoon. Shows alert when done or if no next album exists.
+--- Helper to skip to a new album in the specified direction asynchronously.
+-- Calls onAlbumFound when target album is reached.
 -- Respects the maxAlbumSkipAttempts attribute.
 --
+-- @param direction (string): "next" or "previous"
+-- @param onAlbumFound (function): Callback when new album is found
 -- @return (boolean): true if skip initiated, false if Music not running
-function obj:nextAlbum()
+function obj:_skipToNewAlbum(direction, onAlbumFound)
   if not self:_ensureMusicRunning() then
     return false
   end
 
   local startAlbum = hs.itunes.getCurrentAlbum()
   local attempts = 0
+  local skipFunc = (direction == "next") and hs.itunes.next or hs.itunes.previous
+  local directionLabel = (direction == "next") and "next album" or "previous album"
 
   local function checkAlbumChange()
     attempts = attempts + 1
     local currentAlbum = hs.itunes.getCurrentAlbum()
 
     if currentAlbum ~= startAlbum then
-      hs.alert.show("Skipped to album: " .. (currentAlbum or "Unknown"))
+      onAlbumFound(currentAlbum)
       return
     end
 
     if attempts >= self.maxAlbumSkipAttempts then
-      hs.alert.show("Skipped " .. attempts .. " tracks, no new album found")
+      hs.alert.show("Skipped " .. attempts .. " tracks, no " .. directionLabel .. " found")
       return
     end
 
-    hs.itunes.next()
-    hs.timer.doAfter(0.3, checkAlbumChange)
+    skipFunc()
+    hs.timer.doAfter(self.albumSkipDelay, checkAlbumChange)
   end
 
-  hs.itunes.next()
-  hs.timer.doAfter(0.3, checkAlbumChange)
+  skipFunc()
+  hs.timer.doAfter(self.albumSkipDelay, checkAlbumChange)
   return true
+end
+
+--- Helper to seek to the first track of the current album by skipping backward.
+-- Continues backward until we'd leave the album, then goes forward once.
+-- Uses maxAlbumSkipAttempts and albumSkipDelay attributes.
+--
+-- @param targetAlbum (string): The album name to stay within
+function obj:_seekToFirstTrackCurrentAlbum(targetAlbum)
+  local seekAttempts = 0
+  local function seekTrack()
+    seekAttempts = seekAttempts + 1
+    hs.itunes.previous()
+    local currentAlbum = hs.itunes.getCurrentAlbum()
+
+    if currentAlbum ~= targetAlbum then
+      -- Hit the boundary, go forward one step to land on first track
+      hs.itunes.next()
+      hs.alert.show("Skipped to album: " .. (hs.itunes.getCurrentAlbum() or "Unknown"))
+      return
+    end
+
+    if seekAttempts >= self.maxAlbumSkipAttempts then
+      -- Reached attempt limit while still in the same album
+      hs.alert.show("Reached attempt limit while seeking within album")
+      return
+    end
+
+    hs.timer.doAfter(self.albumSkipDelay, seekTrack)
+  end
+
+  hs.timer.doAfter(self.albumSkipDelay, seekTrack)
+end
+
+--- Skips to the next album asynchronously.
+-- Uses callbacks to avoid blocking Hammerspoon. Shows alert when done or if no next album exists.
+-- Respects the maxAlbumSkipAttempts attribute.
+--
+-- @return (boolean): true if skip initiated, false if Music not running
+function obj:nextAlbum()
+  return self:_skipToNewAlbum("next", function(album)
+    hs.alert.show("Skipped to album: " .. (album or "Unknown"))
+  end)
+end
+
+--- Skips to the previous album and positions at the first track asynchronously.
+-- Uses callbacks to avoid blocking Hammerspoon. Shows alert when done or if no previous album exists.
+-- Respects the maxAlbumSkipAttempts attribute.
+--
+-- @return (boolean): true if skip initiated, false if Music not running
+function obj:previousAlbum()
+  return self:_skipToNewAlbum("previous", function(album)
+    self:_seekToFirstTrackCurrentAlbum(album)
+  end)
 end
 
 --- Initializes the spoon with hotkey bindings.
@@ -255,7 +315,8 @@ end
 -- - hotkeys.nextTrack: Hotkey for next track
 -- - hotkeys.previousTrack: Hotkey for previous track
 -- - hotkeys.showTrack: Hotkey to show current track
--- - hotkeys.skipAlbum: Hotkey to skip to next album
+-- - hotkeys.nextAlbum: Hotkey to skip to next album
+-- - hotkeys.previousAlbum: Hotkey to skip to previous album
 --
 -- @return (hs_music): Returns self for chaining
 function obj:init(hotkeys)
@@ -266,7 +327,8 @@ function obj:init(hotkeys)
     nextTrack = self.nextTrack,
     previousTrack = self.previousTrack,
     showTrack = self.showCurrentTrack,
-    skipAlbum = self.nextAlbum
+    nextAlbum = self.nextAlbum,
+    previousAlbum = self.previousAlbum
   }
 
   for key, func in pairs(hotkeyMaps) do

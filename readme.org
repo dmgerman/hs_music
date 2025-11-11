@@ -18,6 +18,7 @@ A Hammerspoon spoon for controlling Apple Music playback and volume.
 - =nextTrack()= - Skip to next track
 - =previousTrack()= - Go to previous track
 - =nextAlbum()= - Skip to the next album (asynchronous, non-blocking)
+- =previousAlbum()= - Skip to the previous album (asynchronous, non-blocking)
 
 ** Track Information
 
@@ -80,7 +81,8 @@ Configure hotkey bindings to control Music playback:
 - =nextTrack= - Hotkey for next track
 - =previousTrack= - Hotkey for previous track
 - =showTrack= - Hotkey to display current track info
-- =skipAlbum= - Hotkey to skip to next album
+- =nextAlbum= - Hotkey to skip to next album
+- =previousAlbum= - Hotkey to skip to previous album
 
 Each hotkey requires =mods= (modifiers array) and =key= (key name):
 #+BEGIN_SRC lua
@@ -89,7 +91,8 @@ music:init({
   nextTrack = { mods = {"cmd", "shift"}, key = "n" },
   previousTrack = { mods = {"cmd", "shift"}, key = "b" },
   showTrack = { mods = {"cmd", "shift"}, key = "i" },
-  skipAlbum = { mods = {"cmd", "shift"}, key = "a" }
+  nextAlbum = { mods = {"cmd", "shift"}, key = "a" },
+  previousAlbum = { mods = {"cmd", "shift"}, key = "z" }
 })
 #+END_SRC
 
@@ -112,7 +115,8 @@ music:init({
   nextTrack = { mods = {"cmd", "shift"}, key = "n" },
   previousTrack = { mods = {"cmd", "shift"}, key = "b" },
   showTrack = { mods = {"cmd", "shift"}, key = "i" },
-  skipAlbum = { mods = {"cmd", "shift"}, key = "a" }
+  nextAlbum = { mods = {"cmd", "shift"}, key = "a" },
+  previousAlbum = { mods = {"cmd", "shift"}, key = "z" }
 })
 #+END_SRC
 
@@ -129,8 +133,14 @@ music:togglePlayPause()
 -- Skip to next track
 music:nextTrack()
 
+-- Skip to previous track
+music:previousTrack()
+
 -- Skip to next album (asynchronous)
 music:nextAlbum()
+
+-- Skip to previous album (asynchronous)
+music:previousAlbum()
 
 -- Show current track with custom format
 music:showCurrentTrack()
