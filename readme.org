@@ -19,12 +19,16 @@ A Hammerspoon spoon for controlling Apple Music playback and volume.
 - =previousTrack()= - Go to previous track
 - =nextAlbum()= - Skip to the next album (asynchronous, non-blocking)
 - =previousAlbum()= - Skip to the previous album (asynchronous, non-blocking)
+- =play(=)          - Forces to start playing a track
+- =stop()=          - Stops playing a track. Note that after stop, play will restart the playlist/album
+  
 
-** Track Information
+** Track Information and play status
 
 - =getCurrentTrack()= - Returns formatted track info (customizable via =trackFormat=)
 - =getCurrentArtist()= - Returns current artist name
 - =showCurrentTrack()= - Display track info in alert (uses =alertDuration= and =trackFormat=)
+- =isMusicPlaying()=   - True is a track is playing
 
 ** Volume Control
 

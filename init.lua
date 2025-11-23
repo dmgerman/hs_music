@@ -92,7 +92,85 @@ function obj:previousTrack()
   if not self:_ensureMusicRunning() then
     return false
   end
-  hs.itunes.previous()
+  if obj:isMusicPlaying() then
+    music:togglePlayPause()
+    hs.itunes.previous()
+    music:togglePlayPause()
+  else
+    hs.itunes.previous()
+  end
+  return true
+end
+
+--- Checks if music is currently playing.
+--
+-- @return (boolean): true if music is playing, false otherwise
+function obj:isMusicPlaying()
+  local ok, result = hs.osascript.applescript([[
+    if application "Music" is running then
+      tell application "Music" to get player state
+    else
+      return "not running"
+    end if
+  ]])
+
+  if not ok then
+    hs.alert.show("Warning: Could not check music status")
+    return false
+  end
+  print("Status music is playing: ", result)
+  return result == "playing"
+end
+
+--- Plays the current track.
+-- 
+-- @return (boolean): true if successful, false otherwise
+function obj:play()
+  if not self:_ensureMusicRunning() then
+    return false
+  end
+
+  local ok, result = hs.osascript.applescript([[
+    tell application "Music" to play
+    tell application "Music" to get player state
+  ]])
+
+  if not ok then
+    hs.alert.show("Warning: Could not play music")
+    return false
+  end
+
+  if result ~= "kPSP" then
+    hs.alert.show("Warning: Music play command issued but status is: " .. result)
+  end
+
+  return true
+end
+
+--- Stops playing music.
+--- This is much worse than toggling play. The current song is no longer
+--  active and playing will restart in the next song
+-- 
+-- @return (boolean): true if successful, false otherwise
+function obj:stop()
+  if not self:_ensureMusicRunning() then
+    return false
+  end
+
+  local ok, result = hs.osascript.applescript([[
+    tell application "Music" to stop
+    tell application "Music" to get player state
+  ]])
+
+  if not ok then
+    hs.alert.show("Warning: Could not stop music")
+    return false
+  end
+
+  if result ~= "stopped" then
+    hs.alert.show("Warning: Music stop command issued but status is: " .. result)
+  end
+
   return true
 end
 
