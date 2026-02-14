@@ -411,7 +411,15 @@ function obj:init(hotkeys)
 
   for key, func in pairs(hotkeyMaps) do
     if hotkeys[key] then
-      hs.hotkey.bind(hotkeys[key].mods, hotkeys[key].key, function()
+      local descriptions = {
+        togglePlayPause = "Toggle music play/pause [Music]",
+        nextTrack = "Next music track [Music]",
+        previousTrack = "Previous music track [Music]",
+        showTrack = "Show current track [Music]",
+        nextAlbum = "Next album [Music]",
+        previousAlbum = "Previous album [Music]"
+      }
+      hs.hotkey.bind(hotkeys[key].mods, hotkeys[key].key, descriptions[key] or ("Music control [Music]"), function()
         func(self)
       end)
     end
