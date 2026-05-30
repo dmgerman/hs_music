@@ -1,6 +1,6 @@
 #+TITLE: hs_music Spoon
 #+AUTHOR: Daniel M German
-#+VERSION: 0.2
+#+VERSION: 0.3
 
 A Hammerspoon spoon for controlling Apple Music playback and volume.
 
@@ -9,6 +9,8 @@ A Hammerspoon spoon for controlling Apple Music playback and volume.
 - *Playback Control*: Play/pause, next/previous track, skip to next album
 - *Track Info*: Get and display current track name, artist, and album
 - *Volume Control*: Set, get, and adjust Music app volume (0-100)
+- *Album Library*: Curated album list file driving "play a specific album",
+  "play a random album", and an =hs.chooser= picker
 - *Hotkey Bindings*: Fully configurable hotkey support for all operations
 - *Non-blocking*: Album skip uses async callbacks to not block Hammerspoon
 
@@ -35,6 +37,37 @@ A Hammerspoon spoon for controlling Apple Music playback and volume.
 - =setVolume(level)= - Set volume to a specific level (0-100 percent); returns new volume or nil
 - =getVolume()= - Get current volume as percentage (0-100)
 - =adjustVolume(delta)= - Adjust volume by a given amount (can be negative); returns new volume or nil
+
+** Album Library
+
+The spoon reads a curated list of albums from a text file and offers three
+ways to play from it. All three drive Music's UI: focus the search field
+with ⌘F, paste the query, then walk the accessibility tree to find the
+first card in the "Albums" results section and trigger its play overlay.
+
+- =playAlbum(band, album)= - Search Music for =band, album= and start playback
+  of the first matching album
+- =playRandomAlbum([path])= - Pick a random entry from the album list file
+  and pass it to =playAlbum=
+- =chooseAlbum([path])= - Show an =hs.chooser= of the album list (sorted by
+  band, then album, case-insensitively) and play the selected entry
+- =addCurrentAlbum([path])= - Append the currently playing album to the
+  list as =Band|Album= (skips if a case-insensitive match already exists)
+
+*** File format
+
+Default path is =~/.hammerspoon/albums.txt= (configurable via
+=albumListPath=). One entry per line, =Band|Album=:
+
+#+BEGIN_SRC text
+Radiohead|OK Computer
+The Cure|Disintegration
+# lines whose first character is # are ignored (comments)
+Peter Gabriel|So
+#+END_SRC
+
+Blank lines, lines whose first character is =#=, and lines without a =|=
+are silently skipped.
 
 * Configuration
 
@@ -65,6 +98,17 @@ music.trackFormat = "{album} / {name}"
 music.trackFormat = "{name}"
 #+END_SRC
 
+** Album List Path
+
+Configure the path read by =playRandomAlbum= and =chooseAlbum=:
+#+BEGIN_SRC lua
+-- Default
+music.albumListPath = os.getenv("HOME") .. "/.hammerspoon/albums.txt"
+
+-- Or point at a curated file in your project
+music.albumListPath = "/Users/me/Documents/favorite-albums.txt"
+#+END_SRC
+
 ** Album Skip Attempts
 Configure the maximum number of track skips when using =nextAlbum()=:
 #+BEGIN_SRC lua
@@ -87,6 +131,7 @@ Configure hotkey bindings to control Music playback:
 - =showTrack= - Hotkey to display current track info
 - =nextAlbum= - Hotkey to skip to next album
 - =previousAlbum= - Hotkey to skip to previous album
+- =randomAlbum= - Hotkey for =playRandomAlbum()= (uses =albumListPath=)
 
 Each hotkey requires =mods= (modifiers array) and =key= (key name):
 #+BEGIN_SRC lua
@@ -96,7 +141,8 @@ music:init({
   previousTrack = { mods = {"cmd", "shift"}, key = "b" },
   showTrack = { mods = {"cmd", "shift"}, key = "i" },
   nextAlbum = { mods = {"cmd", "shift"}, key = "a" },
-  previousAlbum = { mods = {"cmd", "shift"}, key = "z" }
+  previousAlbum = { mods = {"cmd", "shift"}, key = "z" },
+  randomAlbum = { mods = {"cmd", "alt", "ctrl"}, key = "r" }
 })
 #+END_SRC
 
@@ -157,6 +203,18 @@ music:adjustVolume(10)
 
 -- Decrease volume by 5%
 music:adjustVolume(-5)
+
+-- Play a specific album by hand
+music:playAlbum("Radiohead", "OK Computer")
+
+-- Play a random album from ~/.hammerspoon/albums.txt
+music:playRandomAlbum()
+
+-- Show a chooser to pick an album from the list
+music:chooseAlbum()
+
+-- Add the currently playing album to ~/.hammerspoon/albums.txt
+music:addCurrentAlbum()
 #+END_SRC
 
 * Requirements
