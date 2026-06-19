@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:www.hammerspoon.org)"
+      "WebFetch(domain:www.hammerspoon.org)",
+      "Bash(hs -c 'local ok, r = hs.osascript.applescript\\([[tell application \"Music\" to get player state]]\\); print\\(\"plain:\", type\\(r\\), r\\)')",
+      "Bash(hs -c 'local ok, r = hs.osascript.applescript\\([[tell application \"Music\" to get \\(player state as text\\)]]\\); print\\(\"as text:\", type\\(r\\), r\\)')",
+      "Bash(hs -c 'local ok, r = hs.osascript.applescript\\([[if application \"Music\" is running then *)",
+      "Bash(hs -c \"hs.reload\\(\\)\")",
+      "Bash(hs -c 'local m = spoon.hs_music *)",
+      "Bash(hs -c 'spoon.hs_music:showCurrentTrack\\(\\) *)",
+      "Bash(hs -c 'spoon.hs_music:showCurrentTrack\\(\\)')",
+      "Bash(hs -c 'print\\(\"clipboard:\"\\); print\\(hs.pasteboard.getContents\\(\\)\\)')"
     ],
     "deny": [],
     "ask": []

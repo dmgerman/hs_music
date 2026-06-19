@@ -26,7 +26,7 @@ obj.__index = obj
 
 --- Metadata about the spoon.
 obj.name = "hs_music"
-obj.version = "0.3"
+obj.version = "0.4"
 obj.author = "Daniel M German <dmg@turingmachine.org>"
 obj.homepage = "https://github.com/Hammerspoon/Spoons"
 obj.license = "MIT"
@@ -75,6 +75,17 @@ obj.axWalkMaxDepth = 16
 
 -- @field hoverPlayDelay (number): Delay after mouse hover for Music's play overlay to render.
 obj.hoverPlayDelay = 0.4
+
+-- @field autoPlayInterval (number): Polling interval in seconds for the auto-play watcher.
+-- See startAutoPlay/stopAutoPlay/toggleAutoPlay.
+obj.autoPlayInterval = 60
+
+-- @field autoPlayOnInit (boolean): If true, the auto-play watcher is started
+-- automatically at the end of init(). Set to false before calling init() to opt out.
+obj.autoPlayOnInit = true
+
+-- Internal: holds the hs.timer for the auto-play watcher, or nil when disabled.
+obj._autoPlayTimer = nil
 
 --- Helper to ensure Music is running, show alert if not.
 --
@@ -149,46 +160,56 @@ function obj:previousTrack()
   return true
 end
 
---- Checks if music is currently playing.
+--- Reads Music's current player state via AppleScript.
+-- Returns the raw state string so callers can distinguish playing/paused/stopped.
+-- `as text` is required: without it hs.osascript returns the raw FourCC
+-- (e.g. "kPSP") rather than the readable string.
 --
--- @return (boolean): true if music is playing, false otherwise
-function obj:isMusicPlaying()
+-- @return (string or nil): "playing", "paused", "stopped", "fast forwarding",
+--   "rewinding", or "not running"; nil if the AppleScript call fails.
+function obj:_getPlayerState()
   local ok, result = hs.osascript.applescript([[
     if application "Music" is running then
-      tell application "Music" to get player state
+      tell application "Music" to get (player state as text)
     else
       return "not running"
     end if
   ]])
-
   if not ok then
+    return nil
+  end
+  return result
+end
+
+--- Checks if music is currently playing.
+--
+-- @return (boolean): true if music is playing, false otherwise
+function obj:isMusicPlaying()
+  local state = self:_getPlayerState()
+  if not state then
     hs.alert.show("Warning: Could not check music status")
     return false
   end
-  print("Status music is playing: ", result)
-  return result == "playing"
+  return state == "playing"
 end
 
 --- Plays the current track.
--- 
+--
 -- @return (boolean): true if successful, false otherwise
 function obj:play()
   if not self:_ensureMusicRunning() then
     return false
   end
 
-  local ok, result = hs.osascript.applescript([[
-    tell application "Music" to play
-    tell application "Music" to get player state
-  ]])
-
+  local ok = hs.osascript.applescript([[tell application "Music" to play]])
   if not ok then
     hs.alert.show("Warning: Could not play music")
     return false
   end
 
-  if result ~= "kPSP" then
-    hs.alert.show("Warning: Music play command issued but status is: " .. result)
+  local state = self:_getPlayerState()
+  if state ~= "playing" then
+    hs.alert.show("Warning: Music play command issued but status is: " .. tostring(state))
   end
 
   return true
@@ -197,25 +218,22 @@ end
 --- Stops playing music.
 --- This is much worse than toggling play. The current song is no longer
 --  active and playing will restart in the next song
--- 
+--
 -- @return (boolean): true if successful, false otherwise
 function obj:stop()
   if not self:_ensureMusicRunning() then
     return false
   end
 
-  local ok, result = hs.osascript.applescript([[
-    tell application "Music" to stop
-    tell application "Music" to get player state
-  ]])
-
+  local ok = hs.osascript.applescript([[tell application "Music" to stop]])
   if not ok then
     hs.alert.show("Warning: Could not stop music")
     return false
   end
 
-  if result ~= "stopped" then
-    hs.alert.show("Warning: Music stop command issued but status is: " .. result)
+  local state = self:_getPlayerState()
+  if state ~= "stopped" then
+    hs.alert.show("Warning: Music stop command issued but status is: " .. tostring(state))
   end
 
   return true
@@ -252,12 +270,13 @@ function obj:getCurrentArtist()
   return hs.itunes.getCurrentArtist()
 end
 
---- Shows current track information in an alert.
+--- Shows current track information in an alert and copies it to the clipboard.
 --
 -- @return (boolean): true if successful, false otherwise
 --
 -- @details
 -- - Displays track info formatted according to trackFormat attribute
+-- - Copies the same formatted string to the pasteboard
 -- - Uses the `alertDuration` attribute (default: 5 seconds)
 -- - Customize format: `music.trackFormat = "{artist} - {name}"`
 -- - Customize duration: `music.alertDuration = 3`
@@ -276,6 +295,7 @@ function obj:showCurrentTrack()
   local album = hs.itunes.getCurrentAlbum()
 
   local trackInfo = self:_formatTrackInfo(name, artist, album)
+  hs.pasteboard.setContents(trackInfo)
   hs.alert.show(trackInfo, self.alertDuration)
   return true
 end
@@ -759,6 +779,19 @@ function obj:addCurrentAlbum(filePath)
   return true
 end
 
+--- Picks a random "Band|Album" entry from the album list file.
+-- Silent: returns nil, nil if the file is missing or has no valid entries.
+--
+-- @param filePath (string): Path to the album list file
+-- @return (string or nil, string or nil): band, album
+function obj:_pickRandomAlbum(filePath)
+  local lines = self:_readAlbumLines(filePath)
+  if not lines or #lines == 0 then
+    return nil, nil
+  end
+  return self:_parseAlbumLine(lines[math.random(#lines)])
+end
+
 --- Picks a random album from a file and plays it via playAlbum.
 --
 -- File format (`albumListPath`, default `~/.hammerspoon/albums.txt`):
@@ -775,14 +808,85 @@ function obj:playRandomAlbum(filePath)
     return false
   end
 
-  local lines = self:_readAlbumLines(filePath)
-  if not lines or #lines == 0 then
+  local band, album = self:_pickRandomAlbum(filePath)
+  if not band then
     hs.alert.show("No valid album lines in: " .. filePath)
     return false
   end
-
-  local band, album = self:_parseAlbumLine(lines[math.random(#lines)])
   return self:playAlbum(band, album)
+end
+
+--- Watcher tick: if Music is stopped or not running, starts a random album.
+-- Paused is treated as a deliberate user choice and left alone.
+-- If the album list has no valid entries the watcher stops itself to avoid
+-- repeatedly alerting on the same error.
+function obj:_autoPlayTick()
+  local state = self:_getPlayerState()
+  if state ~= "stopped" and state ~= "not running" then
+    return
+  end
+
+  local band, album = self:_pickRandomAlbum(self.albumListPath)
+  if not band then
+    hs.alert.show("Auto-play disabled: no valid albums in "
+      .. (self.albumListPath or "?"), self.alertDuration)
+    self:stopAutoPlay()
+    return
+  end
+
+  hs.alert.show("Auto-play: " .. band .. " — " .. album, self.alertDuration)
+  self:playAlbum(band, album)
+end
+
+--- Starts the auto-play watcher. Polls every `autoPlayInterval` seconds and
+-- starts a random album whenever Music is in the "stopped" state (or not
+-- running). Paused state is left alone. Fires an immediate check on start so
+-- the first poll does not wait the full interval.
+--
+-- @return (boolean): true if started, false if already running
+function obj:startAutoPlay()
+  if self._autoPlayTimer then
+    return false
+  end
+  self._autoPlayTimer = hs.timer.new(self.autoPlayInterval, function()
+    self:_autoPlayTick()
+  end)
+  self._autoPlayTimer:start()
+  self:_autoPlayTick()
+  return true
+end
+
+--- Stops the auto-play watcher.
+--
+-- @return (boolean): true if stopped, false if it was not running
+function obj:stopAutoPlay()
+  if not self._autoPlayTimer then
+    return false
+  end
+  self._autoPlayTimer:stop()
+  self._autoPlayTimer = nil
+  return true
+end
+
+--- Toggles the auto-play watcher and shows an alert with the new state.
+--
+-- @return (boolean): the new enabled state (true = on, false = off)
+function obj:toggleAutoPlay()
+  if self._autoPlayTimer then
+    self:stopAutoPlay()
+    hs.alert.show("Auto-play: off")
+    return false
+  end
+  self:startAutoPlay()
+  hs.alert.show(string.format("Auto-play: on (every %ds)", self.autoPlayInterval))
+  return true
+end
+
+--- Reports whether the auto-play watcher is currently enabled.
+--
+-- @return (boolean): true if the watcher timer exists
+function obj:isAutoPlayEnabled()
+  return self._autoPlayTimer ~= nil
 end
 
 --- Initializes the spoon with hotkey bindings.
@@ -796,6 +900,7 @@ end
 -- - hotkeys.nextAlbum: Hotkey to skip to next album
 -- - hotkeys.previousAlbum: Hotkey to skip to previous album
 -- - hotkeys.randomAlbum: Hotkey to search a random album from `albumListPath`
+-- - hotkeys.toggleAutoPlay: Hotkey to toggle the continuous auto-play watcher
 --
 -- @return (hs_music): Returns self for chaining
 function obj:init(hotkeys)
@@ -810,7 +915,8 @@ function obj:init(hotkeys)
     showTrack = self.showCurrentTrack,
     nextAlbum = self.nextAlbum,
     previousAlbum = self.previousAlbum,
-    randomAlbum = self.playRandomAlbum
+    randomAlbum = self.playRandomAlbum,
+    toggleAutoPlay = self.toggleAutoPlay
   }
 
   for key, func in pairs(hotkeyMaps) do
@@ -822,12 +928,17 @@ function obj:init(hotkeys)
         showTrack = "Show current track [Music]",
         nextAlbum = "Next album [Music]",
         previousAlbum = "Previous album [Music]",
-        randomAlbum = "Search random album in Music [Music]"
+        randomAlbum = "Search random album in Music [Music]",
+        toggleAutoPlay = "Toggle continuous auto-play [Music]"
       }
       hs.hotkey.bind(hotkeys[key].mods, hotkeys[key].key, descriptions[key] or ("Music control [Music]"), function()
         func(self)
       end)
     end
+  end
+
+  if self.autoPlayOnInit then
+    self:startAutoPlay()
   end
 
   return self
