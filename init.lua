@@ -82,7 +82,7 @@ obj.autoPlayInterval = 60
 
 -- @field autoPlayOnInit (boolean): If true, the auto-play watcher is started
 -- automatically at the end of init(). Set to false before calling init() to opt out.
-obj.autoPlayOnInit = true
+obj.autoPlayOnInit = false
 
 -- Internal: holds the hs.timer for the auto-play watcher, or nil when disabled.
 obj._autoPlayTimer = nil
