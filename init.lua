@@ -922,14 +922,14 @@ function obj:init(hotkeys)
   for key, func in pairs(hotkeyMaps) do
     if hotkeys[key] then
       local descriptions = {
-        togglePlayPause = "Toggle music play/pause [Music]",
-        nextTrack = "Next music track [Music]",
-        previousTrack = "Previous music track [Music]",
-        showTrack = "Show current track [Music]",
-        nextAlbum = "Next album [Music]",
-        previousAlbum = "Previous album [Music]",
-        randomAlbum = "Search random album in Music [Music]",
-        toggleAutoPlay = "Toggle continuous auto-play [Music]"
+        togglePlayPause = "togglePlayPause - Toggle music play/pause [Music]",
+        nextTrack       = "nextTrack - Next music track [Music]",
+        previousTrack   = "previousTrack - Previous music track [Music]",
+        showTrack       = "showCurrentTrack - Show current track [Music]",
+        nextAlbum       = "nextAlbum - Next album [Music]",
+        previousAlbum   = "previousAlbum - Previous album [Music]",
+        randomAlbum     = "playRandomAlbum - Search random album [Music]",
+        toggleAutoPlay  = "toggleAutoPlay - Toggle continuous auto-play [Music]"
       }
       hs.hotkey.bind(hotkeys[key].mods, hotkeys[key].key, descriptions[key] or ("Music control [Music]"), function()
         func(self)
@@ -943,5 +943,27 @@ function obj:init(hotkeys)
 
   return self
 end
+
+-- ============================================================================
+-- Public Commands (opt-in via hs_hotkeys:registerSpoon(spoon.hs_music))
+-- ============================================================================
+
+obj.publicCommands = {
+  { fn = function() obj:togglePlayPause() end,   desc = "togglePlayPause - Toggle music play/pause" },
+  { fn = function() obj:nextTrack() end,         desc = "nextTrack - Next music track" },
+  { fn = function() obj:previousTrack() end,     desc = "previousTrack - Previous music track" },
+  { fn = function() obj:play() end,              desc = "play - Play music" },
+  { fn = function() obj:stop() end,              desc = "stop - Stop music" },
+  { fn = function() obj:showCurrentTrack() end,  desc = "showCurrentTrack - Show current track" },
+  { fn = function() obj:getVolume() end,         desc = "getVolume - Show music volume" },
+  { fn = function() obj:nextAlbum() end,         desc = "nextAlbum - Next album" },
+  { fn = function() obj:previousAlbum() end,     desc = "previousAlbum - Previous album" },
+  { fn = function() obj:chooseAlbum() end,       desc = "chooseAlbum - Choose album from list" },
+  { fn = function() obj:addCurrentAlbum() end,   desc = "addCurrentAlbum - Add current album to list" },
+  { fn = function() obj:playRandomAlbum() end,   desc = "playRandomAlbum - Play random album from list" },
+  { fn = function() obj:startAutoPlay() end,     desc = "startAutoPlay - Start auto-play watcher" },
+  { fn = function() obj:stopAutoPlay() end,      desc = "stopAutoPlay - Stop auto-play watcher" },
+  { fn = function() obj:toggleAutoPlay() end,    desc = "toggleAutoPlay - Toggle auto-play watcher" },
+}
 
 return obj
